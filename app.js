@@ -40,11 +40,11 @@ var visualRecognition = watson.visual_recognition({
   version_date: '2015-05-19'
 });
 
-app.get('/', function(req, res) {
+app.get('/', function (req, res) {
   res.render('use');
 });
 
-var scoreData = function(score) {
+var scoreData = function (score) {
   var scoreColor;
   if (score >= 0.8) {
     scoreColor = '#b9e7c9';
@@ -53,10 +53,10 @@ var scoreData = function(score) {
   } else {
     scoreColor = '#f4bac0';
   }
-  return { score: score, xloc: (score * 312.0), scoreColor: scoreColor};
+  return { score: score, xloc: (score * 312.0), scoreColor: scoreColor };
 };
 
-app.get('/thermometer', function(req, res) {
+app.get('/thermometer', function (req, res) {
   if (typeof req.query.score === 'undefined') {
     return res.status(400).json({ error: 'Missing required parameter: score', code: 400 });
   }
@@ -69,7 +69,7 @@ app.get('/thermometer', function(req, res) {
   }
 });
 
-app.get('/ready/:classifier_id', function(req, res) {
+app.get('/ready/:classifier_id', function (req, res) {
   visualRecognition.getClassifier(req.params, function getClassifier(err, classifier) {
     if (err) {
       console.log(err);
@@ -79,11 +79,11 @@ app.get('/ready/:classifier_id', function(req, res) {
   });
 });
 
-app.get('/train', function(req, res) {
+app.get('/train', function (req, res) {
   res.render('train');
 });
 
-app.get('/test', function(req, res) {
+app.get('/test', function (req, res) {
   res.render('test', {
     bundle: JSON.parse(req.cookies.bundle || '{}'),
     classifier: JSON.parse(req.cookies.classifier || '{}')
@@ -92,7 +92,7 @@ app.get('/test', function(req, res) {
 
 
 function deleteUploadedFile(readStream) {
-  fs.unlink(readStream.path, function(e) {
+  fs.unlink(readStream.path, function (e) {
     if (e) {
       console.log('error deleting %s: %s', readStream.path, e);
     }
@@ -104,53 +104,64 @@ function deleteUploadedFile(readStream) {
  * @param req.body.bundles Array of selected bundles
  * @param req.body.kind The bundle kind
  */
-app.post('/api/classifiers', app.upload.fields([{ name: 'classupload', maxCount: 3 }, { name: 'negativeclassupload', maxCount: 1 }]), function(req, res) {
-  var formData;
+app.post('/api/classifiers',
+  app.upload.fields(
+    [
+      { name: 'classupload', maxCount: 3 },
+      { name: 'negativeclassupload', maxCount: 1 }
+    ]), function (req, res) {
+      //console.log(req);
+      var formData;
 
-  if (!req.files) {
-    formData = bundleUtils.createFormData(req.body);
-  } else {
-    formData = { name: req.body.classifiername };
-    req.files.classupload.map(function(fileobj, idx) {
-      formData[req.body.classname[idx] + '_positive_examples'] = fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
-    });
+      if (!req.files) {
+        formData = bundleUtils.createFormData(req.body);
+      } else {
+        formData = { name: req.body.classifiername };
+        req.files.classupload.map(function (fileobj, idx) {
+          if (idx < 1) {
+            formData[req.body.classname[idx] + '_positive_examples'] = fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
+          }else{
+            formData.negative_examples =fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
+          }
+        });
 
-    if (req.files.negativeclassupload && req.files.negativeclassupload.length > 0) {
-      var negpath = path.join(req.files.negativeclassupload[0].destination, req.files.negativeclassupload[0].filename);
-      formData.negative_examples = fs.createReadStream(negpath);
-    }
-  }
-
-  visualRecognition.createClassifier(formData, function createClassifier(err, classifier) {
-    if (req.files) {
-      req.files.classupload.map(deleteUploadedFile);
-      if (req.files.negativeclassupload) {
-        req.files.negativeclassupload.map(deleteUploadedFile);
+        //if (req.files.negativeclassupload && req.files.negativeclassupload.length > 0) {
+        //  var negpath = path.join(req.files.negativeclassupload[0].destination, req.files.negativeclassupload[0].filename);
+        //  formData.negative_examples = fs.createReadStream(negpath);
+        //}
       }
-    }
+      console.log(formData)
+      visualRecognition.createClassifier(formData, function createClassifier(err, classifier) {
+        if (req.files) {
+          req.files.classupload.map(deleteUploadedFile);
+          if (req.files.negativeclassupload) {
+            req.files.negativeclassupload.map(deleteUploadedFile);
+          }
+        }
 
-    if (err) {
-      console.log(err);
-      return res.status(err.code || 500).json(err);
-    }
-    // deletes the classifier after an hour
-    setTimeout(visualRecognition.deleteClassifier.bind(visualRecognition, classifier), ONE_HOUR);
-    res.json(classifier);
-  });
-});
+        if (err) {
+          console.log(err);
+          return res.status(err.code || 500).json(err);
+        }
+        // deletes the classifier after an hour
+        //setTimeout(visualRecognition.deleteClassifier.bind(visualRecognition, classifier), ONE_HOUR);
+        res.json(classifier);
+      });
+    });
 
 /**
  * Gets the status of a classifier
  * @param req.params.classifier_id The classifier id
  */
-app.get('/api/classifiers/:classifier_id', function(req, res) {
+app.get('/api/classifiers/:classifier_id', function (req, res) {
   visualRecognition.getClassifier(req.params, function getClassifier(err, classifier) {
     if (err) {
       console.log(err);
       return res.status(err.code || 500).json(err);
     }
     res.json(classifier);
-  });});
+  });
+});
 
 /**
  * Parse a base 64 image and return the extension and buffer
@@ -176,7 +187,7 @@ function parseBase64Image(imageString) {
  *                     images/test.jpg or https://example.com/test.jpg
  * @param req.file The image file.
  */
-app.post('/api/classify', app.upload.single('images_file'), function(req, res) {
+app.post('/api/classify', app.upload.single('images_file'), function (req, res) {
   var params = {
     url: null,
     images_file: null
@@ -214,9 +225,9 @@ app.post('/api/classify', app.upload.single('images_file'), function(req, res) {
   }
 
   // run the 3 classifiers asynchronously and combine the results
-  async.parallel(methods.map(function(method) {
+  async.parallel(methods.map(function (method) {
     return async.reflect(visualRecognition[method].bind(visualRecognition, params));
-  }), function(err, results) {
+  }), function (err, results) {
     // delete the recognized file
     if (params.images_file && !req.body.url) {
       deleteUploadedFile(params.images_file);
@@ -227,7 +238,7 @@ app.post('/api/classify', app.upload.single('images_file'), function(req, res) {
       return res.status(err.code || 500).json(err);
     }
     // combine the results
-    var combine = results.map(function(result) {
+    var combine = results.map(function (result) {
       if (result.value && result.value.length) {
         // value is an array of arguments passed to the callback (excluding the error).
         // In this case, it's the result and then the request object.
@@ -235,7 +246,7 @@ app.post('/api/classify', app.upload.single('images_file'), function(req, res) {
         result.value = result.value[0];
       }
       return result;
-    }).reduce(function(prev, cur) {
+    }).reduce(function (prev, cur) {
       return extend(true, prev, cur);
     });
     if (combine.value) {
@@ -244,7 +255,7 @@ app.post('/api/classify', app.upload.single('images_file'), function(req, res) {
         combine.value.classifier_ids = req.body.classifier_id;
       }
       combine.value.raw = {};
-      methods.map(function(methodName, idx) {
+      methods.map(function (methodName, idx) {
         combine.value.raw[methodName] = encodeURIComponent(JSON.stringify(results[idx].value));
       });
       res.json(combine.value);
