@@ -120,8 +120,8 @@ app.post('/api/classifiers',
         req.files.classupload.map(function (fileobj, idx) {
           if (idx < 1) {
             formData[req.body.classname[idx] + '_positive_examples'] = fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
-          }else{
-            formData.negative_examples =fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
+          } else {
+            formData.negative_examples = fs.createReadStream(path.join(fileobj.destination, fileobj.filename));
           }
         });
 
@@ -223,6 +223,80 @@ app.post('/api/classify', app.upload.single('images_file'), function (req, res) 
     methods.push('detectFaces');
     methods.push('recognizeText');
   }
+
+  // run the 3 classifiers asynchronously and combine the results
+  async.parallel(methods.map(function (method) {
+    return async.reflect(visualRecognition[method].bind(visualRecognition, params));
+  }), function (err, results) {
+    // delete the recognized file
+    if (params.images_file && !req.body.url) {
+      deleteUploadedFile(params.images_file);
+    }
+
+    if (err) {
+      console.log(err);
+      return res.status(err.code || 500).json(err);
+    }
+    // combine the results
+    var combine = results.map(function (result) {
+      if (result.value && result.value.length) {
+        // value is an array of arguments passed to the callback (excluding the error).
+        // In this case, it's the result and then the request object.
+        // We only want the result.
+        result.value = result.value[0];
+      }
+      return result;
+    }).reduce(function (prev, cur) {
+      return extend(true, prev, cur);
+    });
+    if (combine.value) {
+      // save the classifier_id as part of the response
+      if (req.body.classifier_id) {
+        combine.value.classifier_ids = req.body.classifier_id;
+      }
+      combine.value.raw = {};
+      methods.map(function (methodName, idx) {
+        combine.value.raw[methodName] = encodeURIComponent(JSON.stringify(results[idx].value));
+      });
+      res.json(combine.value);
+    } else {
+      res.status(400).json(combine.error);
+    }
+  });
+});
+
+app.post('/api/custom_classify/:classifier_id', app.upload.single('images_file'), function (req, res) {
+  let classifier_id = req.params.classifier_id;
+  var params = {
+    url: null,
+    images_file: null
+  };
+
+  if (req.file) {
+    // file image as .png or .jpg sent
+    console.log(req.file);
+    params.images_file = fs.createReadStream(req.file.path);
+  } else if (req.body.image_data) {
+    // sent as base64
+    // write the base64 image to a temp file
+    var resource = parseBase64Image(req.body.image_data);
+    var temp = path.join(os.tmpdir(), uuid.v1() + '.' + resource.type);
+    fs.writeFileSync(temp, resource.data);
+    params.images_file = fs.createReadStream(temp);
+  } else { // malformed url
+    return res.status(400).json({ error: 'Malformed URL', code: 400 });
+  }
+
+  if (params.images_file) {
+    delete params.url;
+  } else {
+    delete params.images_file;
+  }
+  var methods = [];
+  if (classifier_id) {
+    params.classifier_ids = [classifier_id];
+    methods.push('classify');
+  } 
 
   // run the 3 classifiers asynchronously and combine the results
   async.parallel(methods.map(function (method) {
