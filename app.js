@@ -134,7 +134,7 @@ app.post('/api/classifiers', app.upload.fields([{ name: 'classupload', maxCount:
       return res.status(err.code || 500).json(err);
     }
     // deletes the classifier after an hour
-    setTimeout(visualRecognition.deleteClassifier.bind(visualRecognition, classifier), ONE_HOUR);
+    //setTimeout(visualRecognition.deleteClassifier.bind(visualRecognition, classifier), ONE_HOUR);
     res.json(classifier);
   });
 });
