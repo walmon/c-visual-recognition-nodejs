@@ -139,11 +139,38 @@ app.post('/api/classifiers', app.upload.fields([{ name: 'classupload', maxCount:
   });
 });
 
+app.post('/api/delete_classifier/:classifier_id', function (req, res) {
+  
+visualRecognition.deleteClassifier(req.params, 
+  function (err, result){
+    if (err) {
+        console.log(err);
+        return res.status(err.code || 500).json(err);
+      }
+      res.json(result);
+  });
+});
+
+/**
+ * Gets the status of all classifiers
+ */
+app.get('/api/classifiers/', function (req, res) {
+  
+  visualRecognition.listClassifiers(null, function getClassifier(err, classifiers) {
+    if (err) {
+      console.log(err);
+      return res.status(err.code || 500).json(err);
+    }
+    res.json(classifiers);
+  });
+});
+
 /**
  * Gets the status of a classifier
  * @param req.params.classifier_id The classifier id
  */
 app.get('/api/classifiers/:classifier_id', function (req, res) {
+  
   visualRecognition.getClassifier(req.params, function getClassifier(err, classifier) {
     if (err) {
       console.log(err);

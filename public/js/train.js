@@ -26,6 +26,7 @@ var getAndParseCookieName = require('./demo.js').getAndParseCookieName;
 // var currentPage = require('./demo.js').currentPage;
 
 $(document).ready(function() {
+  
   $('._training--example').click(function() {
     var currentExample = $(this);
     window.fileUploader = [];
@@ -86,6 +87,8 @@ $(document).ready(function() {
       }
     }
   });
+
+  $('._training--example').click();
 
   function warningMessagesVisability() {
     if ($('.classifier[data-hasfile=1]').length > 1) {
@@ -393,7 +396,11 @@ $(document).ready(function() {
       contentType: params.contentType || false,
       processData: false,
       dataType: 'json',
-      success: function(classifier) {
+      success: createdClassifierOk,
+      error: showTrainingError
+    });
+
+    function createdClassifierOk(classifier) {
         setTimeout(function() {
           checkClassifier(classifier.classifier_id, function done() {
             Cookies.set('bundle', params.bundle, { expires: nextHour()});
@@ -414,9 +421,7 @@ $(document).ready(function() {
             showTestPanel(classifier);
           });
         }, 5000);
-      },
-      error: showTrainingError
-    });
+      }
   }
 
   $trainButton.click(function() {

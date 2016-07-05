@@ -1,21 +1,7 @@
-/**
- * Copyright 2015 IBM Corp. All Rights Reserved.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *      http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-/* global _:true, Cookies:true*/
-/* eslint no-unused-vars: "warn"*/
+
 'use strict';
+var getClassifiers = require('./classifiers.js').getClassifiers;
+var removeClassifier = require('./classifiers.js').removeClassifier;
 
 var resize = require('./demo.js').resize;
 var scrollToElement = require('./demo.js').scrollToElement;
@@ -30,6 +16,47 @@ var errorMessages = {
 };
 
 var lockState = {};
+
+
+$(document).ready(function () {
+  
+  getClassifiers().then(function (res) {
+    var $items = $('#items');
+    var items = res.classifiers;
+    
+    for(var i =0; i<items.length; i++){
+      // render each item
+      $items.append(
+        $('<li class="sub-item">').data('id', items[i].classifier_id).append(
+          $('<p>').append( items[i].name + ' (' + items[i].classifier_id + ')')
+        ).append(
+          $('<p class="status">').append(items[i].status)
+        ).append(
+          $('<ul class="options">').append(
+            $('<li>').append('Eliminar').click(function(){
+              // delete current classifier
+              var that = this;
+              let id = $(that).parent().parent().data('id');
+              removeClassifier(id).then(ok, fail);
+
+              function ok(){
+                removeUIItem();
+              }
+              function fail(err){
+                console.log(err);
+              }
+              function removeUIItem(){
+                $(that).parent().parent().remove();
+              }
+            })
+          )
+        )
+      );
+    }
+  }, function (err) {
+    console.log(err);
+  });
+});
 
 function lock(lockName) {
   if (lockState[lockName] === 1) {
@@ -128,10 +155,10 @@ function setupUse(params) {
     renderTable(results);
     $result.show();
 
-    setTimeout(function() {
+    setTimeout(function () {
       renderEntities(results);
     }, 100);
-    $(window).resize(function() {
+    $(window).resize(function () {
       $boxes.empty();
       renderEntities(results);
     });
@@ -140,7 +167,7 @@ function setupUse(params) {
     if ($outputData.html() === '') {
       $outputData.after(
         $('<div class="' + panel + '--mismatch" />')
-        .html('No matching classifiers found.'));
+          .html('No matching classifiers found.'));
     }
 
     var outputImage = document.querySelector('.use--output-image');
@@ -168,40 +195,7 @@ function setupUse(params) {
   /*
    * submit event
    */
-  function classifyImage(imgPath, imageData, beforeFunction, afterFunction) {
-    if (!lock('classify')) {
-      return;
-    }
 
-    beforeFunction ? beforeFunction() : false;
-
-    processImage();
-    if (imgPath !== '') {
-      $image.attr('src', imgPath);
-      $urlInput.val(imgPath);
-    }
-
-    $imageDataInput.val(imageData);
-
-    // Grab all form data
-    $.post('/api/classify', $(pclass + 'form').serialize())
-      .done(showResult)
-      .error(function(error) {
-        $loading.hide();
-        console.log(error);
-
-        if (error.status === 429) {
-          showError(errorMessages.TOO_MANY_REQUESTS);
-        } else if (error.responseJSON && error.responseJSON.error) {
-          showError('We had a problem classifying that image because ' + error.responseJSON.error);
-        } else {
-          showError(errorMessages.SITE_IS_DOWN);
-        }
-      }).always(function() {
-        afterFunction ? afterFunction() : false;
-        unlock('classify');
-      });
-  }
 
   /*
    * Prevent default form submission
@@ -209,39 +203,9 @@ function setupUse(params) {
   $fileupload.submit(false);
 
   /*
-   * Radio image submission
-   */
-  $radioImages.click(function() {
-    var rI = $(this);
-    var imgPath = rI.next('label').find('img').attr('src');
-    $urlInput.hide();
-    classifyImage(imgPath, null, function() {
-      $('input[type=radio][name=use--example-images]').prop('disabled', true);
-      resetPasteUrl();
-      rI.parent().find('label').addClass('dim');
-      rI.parent().find('label[for=' + rI.attr('id') + ']').removeClass('dim');
-    }, function() {
-      $urlInput.val('');
-      $urlInput.show();
-      $('input[type=radio][name=use--example-images]').prop('disabled', false);
-    });
-  });
-
-  /*
-   * Random image submission
-   */
-  $randomImage.click(function() {
-    resetPasteUrl();
-    var kind = getAndParseCookieName('bundle').kind;
-    var path = kind === 'user' ? '/samples/' : '/bundles/' + kind + '/test/';
-    classifyImage('images' + path +  getRandomInt(1, 5) + '.jpg');
-    $urlInput.val('');
-  });
-
-  /*
    * Image url submission
    */
-  $urlInput.keypress(function(e) {
+  $urlInput.keypress(function (e) {
     var url = $(this).val();
     var self = $(this);
 
@@ -269,21 +233,21 @@ function setupUse(params) {
     dataType: 'json',
     dropZone: $dropzone,
     acceptFileTypes: /(\.|\/)(gif|jpe?g|png)$/i,
-    add: function(e, data) {
+    add: function (e, data) {
       data.url = '/api/classify';
       if (data.files && data.files[0]) {
         $error.hide();
 
         processImage();
         var reader = new FileReader();
-        reader.onload = function() {
+        reader.onload = function () {
           var image = new Image();
           image.src = reader.result;
-          image.onload = function() {
+          image.onload = function () {
             $image.attr('src', this.src);
             classifyImage('', resize(image, 2048));
           };
-          image.onerror = function() {
+          image.onerror = function () {
             _error(null, 'Error loading the image file. I can only work with images.');
           };
         };
@@ -291,17 +255,17 @@ function setupUse(params) {
       }
     },
     error: _error,
-    done: function(e, data) {
+    done: function (e, data) {
       showResult(data.result);
     }
   });
 
-  $(document).on('dragover', function() {
+  $(document).on('dragover', function () {
     $(pclass + 'dropzone label').addClass('dragover');
     $('form#use--fileupload').addClass('dragover');
   });
 
-  $(document).on('dragleave', function() {
+  $(document).on('dragleave', function () {
     $(pclass + 'dropzone label').removeClass('dragover');
     $('form#use--fileupload').removeClass('dragover');
   });
@@ -343,7 +307,7 @@ function setupUse(params) {
     if (results.images[0].faces) {
       // eslint-disable-next-line camelcase
       imageBoxes_template = imageBoxesTemplate.innerHTML;
-      var faceLocations = results.images[0].faces.map(function(face) {
+      var faceLocations = results.images[0].faces.map(function (face) {
         return transformBoxLocations(face.face_location, document.querySelector('.use--output-image'));
       });
 
@@ -355,7 +319,7 @@ function setupUse(params) {
     if (results.images[0].words) {
       // eslint-disable-next-line camelcase
       imageBoxes_template = imageBoxesTemplate.innerHTML;
-      var locations = results.images[0].words.map(function(word) {
+      var locations = results.images[0].words.map(function (word) {
         return transformBoxLocations(word.location, document.querySelector('.use--output-image'));
       });
 
@@ -394,7 +358,7 @@ function setupUse(params) {
     var clientTop = docEl.clientTop || body.clientTop || 0;
     var clientLeft = docEl.clientLeft || body.clientLeft || 0;
 
-    var top  = box.top +  scrollTop - clientTop;
+    var top = box.top + scrollTop - clientTop;
     var left = box.left + scrollLeft - clientLeft;
 
     return { top: Math.round(top), left: Math.round(left) };
@@ -421,8 +385,8 @@ function setupUse(params) {
       results.images[0].classifiers.length > 0 &&
       results.images[0].classifiers[0].classes !== 'undefined') &&
       results.images[0].classifiers[0].classes.length > 0) {
-      var classesModel = (function() {
-        var classes = results.images[0].classifiers[0].classes.map(function(item) {
+      var classesModel = (function () {
+        var classes = results.images[0].classifiers[0].classes.map(function (item) {
           return {
             name: results.classifier_ids ? lookupInMap(classNameMap, bundle.kind, item.class, item.class) : item.class,
             score: roundScore(item.score),
@@ -446,15 +410,15 @@ function setupUse(params) {
         classes = bundle.names.slice(0, -1).join(', ') + ' or ' + bundle.names.slice(-1);
       }
       $outputData.html('<div class="' + panel + '--mismatch">' +
-          'The score for this image is not above the threshold of 0.5 for ' + (bundle.name || '' ) + ': ' + classes +
-          ', based on the training data provided.</div>');
+        'The score for this image is not above the threshold of 0.5 for ' + (bundle.name || '') + ': ' + classes +
+        ', based on the training data provided.</div>');
     }
 
     // faces
     if ((typeof results.images[0].faces !== 'undefined') && (results.images[0].faces.length > 0)) {
-      var facesModel = (function() {
+      var facesModel = (function () {
         var identities = [];
-        var faces = results.images[0].faces.reduce(function(acc, facedat) {
+        var faces = results.images[0].faces.reduce(function (acc, facedat) {
           // gender
           acc.push({
             name: facedat.gender.gender.toLowerCase(),
@@ -493,8 +457,8 @@ function setupUse(params) {
 
     // words
     if ((typeof results.images[0].words !== 'undefined') && (results.images[0].words.length > 0)) {
-      var wordsModel = (function() {
-        var words = results.images[0].words.map(function(item) {
+      var wordsModel = (function () {
+        var words = results.images[0].words.map(function (item) {
           return {
             name: item.word,
             score: roundScore(item.score)
@@ -512,29 +476,29 @@ function setupUse(params) {
       }));
     }
 
-    $('a.json').on('click', function() {
+    $('a.json').on('click', function () {
       var rawJsonData = $(this).parent().find('.json_raw').data('raw');
       window.open('data:application/json,' + rawJsonData, '_blank');
     });
 
-    $(document).on('click', '.results-table--input-no', function() {
+    $(document).on('click', '.results-table--input-no', function () {
       $(this).parent().hide();
       $(this).parent().parent().find('.results-table--feedback-thanks').show();
       $(this).parent().parent().addClass('results-table--feedback-wowed');
       var originalElement = $(this);
-      setTimeout(function() {
+      setTimeout(function () {
         originalElement.parent().show();
         originalElement.parent().parent().find('.results-table--feedback-thanks').hide();
         originalElement.parent().parent().removeClass('results-table--feedback-wowed');
       }, 2000);
     });
 
-    $(document).on('click', '.results-table--input-yes', function() {
+    $(document).on('click', '.results-table--input-yes', function () {
       $(this).parent().hide();
       $(this).parent().parent().find('.results-table--feedback-thanks').show();
       $(this).parent().parent().addClass('results-table--feedback-wowed');
       var originalElement = $(this);
-      setTimeout(function() {
+      setTimeout(function () {
         originalElement.parent().show();
         originalElement.parent().parent().find('.results-table--feedback-thanks').hide();
         originalElement.parent().parent().removeClass('results-table--feedback-wowed');

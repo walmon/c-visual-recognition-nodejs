@@ -550,7 +550,7 @@ form.upload input[type=file] {
 
 @media (min-width: 1200px) {
   .training_dropzone h2.negative-header {
-      height: 4.75rem;
+      
   }
 }
 
